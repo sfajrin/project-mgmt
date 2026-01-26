@@ -3,7 +3,57 @@ import prisma from '../configs/prisma.js';
 // Get all workspaces for user
 export const getUserWorkspaces = async (req, res) => {
     try {
-        const { userId } = await req.auth();
+        const { userId, sessionClaims, orgId, orgSlug } = await req.auth();
+        const userEmail = sessionClaims?.email;
+
+        // 1. Ensure user exists in database
+        let user = await prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user && userEmail) {
+            user = await prisma.user.create({
+                data: {
+                    id: userId,
+                    email: userEmail,
+                    name: sessionClaims?.name || 'User',
+                    image: sessionClaims?.image || '',
+                },
+            });
+            console.log('Created user:', userId);
+        }
+
+        // 2. If user is in a Clerk org, create workspace membership if it doesn't exist
+        if (orgId) {
+            const workspace = await prisma.workspace.findUnique({
+                where: { slug: orgSlug || orgId },
+                include: { members: true },
+            });
+
+            if (workspace) {
+                // Check if user is already a member
+                const existingMember = workspace.members.find(
+                    (m) => m.userId === userId,
+                );
+
+                // Auto-add member if not exists
+                if (!existingMember) {
+                    await prisma.workspaceMember.create({
+                        data: {
+                            userId: userId,
+                            workspaceId: workspace.id,
+                            role: 'MEMBER', // Default to MEMBER
+                        },
+                    });
+                    console.log(
+                        'Auto-added member to workspace:',
+                        workspace.id,
+                    );
+                }
+            }
+        }
+
+        // 3. Fetch all workspaces for user
         const workspaces = await prisma.workspace.findMany({
             where: {
                 members: { some: { userId: userId } },
@@ -24,9 +74,11 @@ export const getUserWorkspaces = async (req, res) => {
                 owner: true,
             },
         });
+
+        console.log('User workspaces:', workspaces.length, 'for user:', userId);
         res.json({ workspaces });
     } catch (error) {
-        console.log(error);
+        console.error('Error fetching workspaces:', error);
         res.status(500).json({ message: error.code || error.message });
     }
 };

@@ -16,25 +16,25 @@ import { fetchWorkspaces } from '../features/workspaceSlice';
 
 const Layout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [fetchAttempted, setFetchAttempted] = useState(false);
     const { loading, workspaces } = useSelector((state) => state.workspace);
     const dispatch = useDispatch();
     const { user, isLoaded } = useUser();
     const { getToken } = useAuth();
     const { organizationList, isLoaded: orgsLoaded } = useOrganizationList();
 
-    // Initial load of theme
+    // Load theme
     useEffect(() => {
         dispatch(loadTheme());
     }, [dispatch]);
 
-    // Initial load of workspaces and refetch when organizations change
+    // Fetch workspaces when user loads - ONLY ONCE per user
     useEffect(() => {
-        if (isLoaded && user && orgsLoaded && !fetchAttempted) {
+        if (isLoaded && user && orgsLoaded) {
             dispatch(fetchWorkspaces({ getToken }));
-            setFetchAttempted(true);
         }
-    }, [user, isLoaded, orgsLoaded, dispatch, getToken, fetchAttempted]);
+        // Only depend on user ID to prevent infinite refetches
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id, isLoaded, orgsLoaded]);
 
     if (!user) {
         return (
@@ -44,37 +44,38 @@ const Layout = () => {
         );
     }
 
-    // Show loading only if we haven't attempted to fetch yet
-    if (loading && !fetchAttempted)
+    if (loading) {
         return (
             <div className="flex items-center justify-center h-screen bg-white dark:bg-zinc-950">
                 <Loader2Icon className="size-7 text-blue-500 animate-spin" />
             </div>
         );
+    }
 
-    if (user && workspaces.length === 0 && fetchAttempted) {
+    if (workspaces.length > 0) {
         return (
-            <div className="min-h-screen flex justify-center items-center">
-                <CreateOrganization afterCreateOrganizationUrl="/" />
+            <div className="flex bg-white dark:bg-zinc-950 text-gray-900 dark:text-slate-100">
+                <Sidebar
+                    isSidebarOpen={isSidebarOpen}
+                    setIsSidebarOpen={setIsSidebarOpen}
+                />
+                <div className="flex-1 flex flex-col h-screen">
+                    <Navbar
+                        isSidebarOpen={isSidebarOpen}
+                        setIsSidebarOpen={setIsSidebarOpen}
+                    />
+                    <div className="flex-1 h-full p-6 xl:p-10 xl:px-16 overflow-y-scroll">
+                        <Outlet />
+                    </div>
+                </div>
             </div>
         );
     }
 
+    // No workspaces - show create organization
     return (
-        <div className="flex bg-white dark:bg-zinc-950 text-gray-900 dark:text-slate-100">
-            <Sidebar
-                isSidebarOpen={isSidebarOpen}
-                setIsSidebarOpen={setIsSidebarOpen}
-            />
-            <div className="flex-1 flex flex-col h-screen">
-                <Navbar
-                    isSidebarOpen={isSidebarOpen}
-                    setIsSidebarOpen={setIsSidebarOpen}
-                />
-                <div className="flex-1 h-full p-6 xl:p-10 xl:px-16 overflow-y-scroll">
-                    <Outlet />
-                </div>
-            </div>
+        <div className="min-h-screen flex justify-center items-center">
+            <CreateOrganization afterCreateOrganizationUrl="/" />
         </div>
     );
 };

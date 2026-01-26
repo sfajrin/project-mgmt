@@ -46,6 +46,7 @@ export const createTask = async (req, res) => {
                 priority,
                 assigneeId,
                 status,
+                type,
                 due_date: new Date(due_date),
             },
         });
@@ -77,7 +78,7 @@ export const createTask = async (req, res) => {
 export const updateTask = async (req, res) => {
     try {
         const task = await prisma.task.findUnique({
-            where: { id: req.param.id },
+            where: { id: req.params.id },
         });
 
         if (!task) {
